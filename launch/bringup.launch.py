@@ -43,7 +43,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             "world": world,
-            "use_rviz": "false",
+            "use_urdf_rviz": "false",
             "x_pose": x_pose,
             "y_pose": y_pose,
         }.items(),

@@ -22,7 +22,7 @@ def generate_launch_description():
     default_world = os.path.join(pkg_share, "worlds", "turtle_world.world")
 
     world = LaunchConfiguration("world")
-    use_rviz = LaunchConfiguration("use_rviz")
+    use_urdf_rviz = LaunchConfiguration("use_urdf_rviz")
     x_pose = LaunchConfiguration("x_pose")
     y_pose = LaunchConfiguration("y_pose")
 
@@ -40,7 +40,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("world", default_value=default_world,
                                description="Full path to the Gazebo world file"),
-        DeclareLaunchArgument("use_rviz", default_value="true",
+        DeclareLaunchArgument("use_urdf_rviz", default_value="true",
                                description="Launch RViz2 alongside the simulation"),
         DeclareLaunchArgument("x_pose", default_value="0.0"),
         DeclareLaunchArgument("y_pose", default_value="0.0"),
@@ -82,6 +82,6 @@ def generate_launch_description():
             output="screen",
             arguments=["-d", rviz_config],
             parameters=[{"use_sim_time": True}],
-            condition=IfCondition(use_rviz),
+            condition=IfCondition(use_urdf_rviz),
         ),
     ])
