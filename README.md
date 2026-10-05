@@ -113,22 +113,44 @@ maps/           saved occupancy-grid maps land here
 scripts/        install_dependencies.sh
 ```
 
+## Verified
+
+`ros2 launch turtle_bot bringup.launch.py` has been run end-to-end on this machine
+(ROS 2 Jazzy, gz-sim/Harmonic, Nav2 1.3, slam_toolbox 2.8): Gazebo spawns the robot,
+`robot_state_publisher` + `ros_gz_bridge` + `slam_toolbox` + every Nav2 lifecycle node
+(`controller_server`, `planner_server`, `route_server`, `behavior_server`,
+`velocity_smoother`, `collision_monitor`, `bt_navigator`, `waypoint_follower`,
+`docking_server`) all configure and activate automatically, and `/map` publishes a real
+occupancy grid built live from the simulated LiDAR. Fixing that took three real bugs,
+in case you ever see similar symptoms after changing something:
+
+- **slam_toolbox never builds a map / `ros2 lifecycle get /slam_toolbox` stays
+  `unconfigured`** — `async_slam_toolbox_node` is a managed lifecycle node and does not
+  self-activate; something has to call `configure` then `activate` on it.
+  `launch/slam.launch.py` now does this automatically via a small dedicated
+  `nav2_lifecycle_manager`.
+- **Nav2 nodes stuck `unconfigured` forever, log ends with `lifecycle_manager_navigation:
+  Failed to bring up all requested nodes. Aborting bringup`** — one of the managed nodes
+  crashed or failed to configure, which wedges the whole sequential bringup. In this repo
+  it was `docking_server`/`route_server` missing their parameter blocks (Jazzy's
+  `nav2_bringup` always starts both, with no opt-out) and `collision_monitor` crashing on
+  empty-list parameters. All three now have working config in `config/nav2_params.yaml`.
+- **slam_toolbox logs `Message Filter dropping message ... discarding message because
+  the queue is full` forever, `/map` never appears** — the LiDAR's `LaserScan.header
+  .frame_id` from gz-sim was a Gazebo-internal scoped name
+  (`turtle_bot/base_footprint/lidar_sensor`), not the URDF link name (`lidar_link`) that
+  `robot_state_publisher`'s TF tree uses, so tf2 could never resolve it. Fixed with
+  `<gz_frame_id>lidar_link</gz_frame_id>` (and the same for the IMU/camera) in
+  `urdf/turtle_bot.gazebo.xacro`.
+
 ## Troubleshooting
 
-This environment could not install Nav2/slam_toolbox or launch a graphical Gazebo/RViz
-session to test-run the stack end-to-end (no sudo, no display). The package was written
-against the well-documented Jazzy + gz-sim (Harmonic) + Nav2 + slam_toolbox integration
-pattern, and `colcon build` / `xacro` parsing were verified. The one place that
-sometimes needs a tweak on a fresh machine is **topic scoping between gz-sim and the ROS
-bridge** (`config/turtle_bot_bridge.yaml`) — if `/odom`, `/tf`, or `/joint_states` don't
-show up after `gazebo.launch.py`:
+If you ever see `/odom`, `/tf`, or `/joint_states` not show up after `gazebo.launch.py`
+on a different Gazebo point release, it's almost always **topic-name drift between
+gz-sim and the ROS bridge** (`config/turtle_bot_bridge.yaml`):
 
 1. List real Gazebo topics while the sim is running: `gz topic -l`
 2. Compare against the `gz_topic_name` values in `config/turtle_bot_bridge.yaml`
 3. Fix any mismatched path (Gazebo scopes topics under `/model/<name>/...` or
    `/world/<world>/model/<name>/...` — the exact prefix can vary slightly by Gazebo
    point release) and re-run.
-
-`/scan`, `/imu`, and `/camera/*` are set to fixed absolute topics directly in
-`urdf/turtle_bot.gazebo.xacro` (`<topic>scan</topic>` etc.), so those should bridge
-as-is.
