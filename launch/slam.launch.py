@@ -28,4 +28,21 @@ def generate_launch_description():
             output="screen",
             parameters=[params_file, {"use_sim_time": use_sim_time}],
         ),
+
+        # async_slam_toolbox_node is a managed lifecycle node and stays "unconfigured"
+        # until something drives it through configure -> activate. nav2's own
+        # lifecycle_manager_navigation (started by navigation.launch.py) only manages
+        # Nav2's own servers, so slam_toolbox needs its own small lifecycle manager here.
+        Node(
+            package="nav2_lifecycle_manager",
+            executable="lifecycle_manager",
+            name="lifecycle_manager_slam",
+            output="screen",
+            parameters=[{
+                "use_sim_time": use_sim_time,
+                "autostart": True,
+                "node_names": ["slam_toolbox"],
+                "bond_timeout": 0.0,
+            }],
+        ),
     ])
